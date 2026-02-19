@@ -2111,8 +2111,10 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 				continue
 			}
 
-			// Handle tool_calls
+			// Handle tool_calls - buffer web_search tool calls silently,
+			// only stream non-web_search tools to the client
 			if tcDelta, ok := delta["tool_calls"].([]interface{}); ok {
+				webSearchToolName := p.getWebSearchToolName()
 				for _, tc := range tcDelta {
 					toolCall, ok := tc.(map[string]interface{})
 					if !ok {
@@ -2143,7 +2145,15 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 						}
 					}
 
-					// Start tool_use block if not started
+					// Skip streaming web_search tool_use events to the client -
+					// these are handled server-side by the agentic loop
+					if tcState.name == webSearchToolName {
+						tcState.started = true
+						tcState.index = -1 // Not streamed to client
+						continue
+					}
+
+					// Start non-web_search tool_use block if not started
 					if !tcState.started && tcState.name != "" {
 						// Close any open text/thinking block
 						if textBlockStarted {
@@ -2183,8 +2193,8 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 						localBlockIndex++
 					}
 
-					// Send input_json_delta
-					if tcState.started {
+					// Send input_json_delta for non-web_search tools only
+					if tcState.started && tcState.index >= 0 {
 						if function, ok := toolCall["function"].(map[string]interface{}); ok {
 							if arguments, ok := function["arguments"].(string); ok && arguments != "" {
 								p.writeAnthropicStreamEvent(w, "content_block_delta", map[string]interface{}{
@@ -2220,7 +2230,7 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 		}
 
 		for _, tc := range toolCalls {
-			if tc.started {
+			if tc.started && tc.index >= 0 {
 				p.writeAnthropicStreamEvent(w, "content_block_stop", map[string]interface{}{
 					"type":  "content_block_stop",
 					"index": tc.index,
@@ -2230,9 +2240,10 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 		flushContent()
 
 		// Check if we have a web_search tool call
+		webSearchToolName := p.getWebSearchToolName()
 		var webSearchToolCall *toolCallState
 		for _, tc := range toolCalls {
-			if tc.name == "web_search" {
+			if tc.name == webSearchToolName {
 				webSearchToolCall = tc
 				break
 			}
@@ -2314,6 +2325,44 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 
 		openaiReq["messages"] = messages
 
+		// On the last allowed iteration, remove the web_search tool AND add a
+		// system hint so the model synthesizes a final answer from gathered results
+		if iteration >= maxIterations-2 {
+			if tools, ok := openaiReq["tools"].([]interface{}); ok {
+				webSearchToolName := p.getWebSearchToolName()
+				var filteredTools []interface{}
+				for _, tool := range tools {
+					toolMap, ok := tool.(map[string]interface{})
+					if !ok {
+						filteredTools = append(filteredTools, tool)
+						continue
+					}
+					fn, _ := toolMap["function"].(map[string]interface{})
+					if fn != nil {
+						if name, _ := fn["name"].(string); name == webSearchToolName {
+							continue // Remove web_search tool
+						}
+					}
+					filteredTools = append(filteredTools, tool)
+				}
+				if len(filteredTools) == 0 {
+					delete(openaiReq, "tools")
+					delete(openaiReq, "tool_choice")
+				} else {
+					openaiReq["tools"] = filteredTools
+				}
+				log.Printf("Claude Code Cloud: Removed web_search tool to force final answer (iteration %d)", iteration+1)
+			}
+
+			// Add a user message hint to force text output
+			messages, _ = openaiReq["messages"].([]interface{})
+			messages = append(messages, map[string]interface{}{
+				"role":    "user",
+				"content": "Based on the search results above, please provide a comprehensive summary. Do not search again.",
+			})
+			openaiReq["messages"] = messages
+		}
+
 		// Re-marshal request body for next iteration
 		requestBody, err = json.Marshal(openaiReq)
 		if err != nil {
@@ -2327,7 +2376,7 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 		log.Printf("Claude Code Cloud: Continuing after web search, iteration %d", iteration+1)
 	}
 
-	// Max iterations reached
+	// Max iterations reached - should rarely happen now since we remove the tool
 	log.Printf("Claude Code Cloud: Web search max iterations reached")
 	p.writeAnthropicStreamEvent(w, "message_delta", map[string]interface{}{
 		"type": "message_delta",
