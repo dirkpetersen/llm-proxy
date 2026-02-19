@@ -821,27 +821,53 @@ func (p *ClaudeCodeCloud) replaceGoogleURLsInText(text string) string {
 	return result
 }
 
-// injectWebSearchTool adds web_search tool to the request if not already present
+// injectWebSearchTool replaces any client-provided web_search tool with our own
+// proxy-managed version. This ensures the proxy handles all web searches server-side
+// instead of the client (e.g., Claude Code) trying to execute them and failing.
 func (p *ClaudeCodeCloud) injectWebSearchTool(claudeReq *ClaudeCodeRequest) {
 	if !p.isWebSearchEnabled() {
 		return
 	}
 
-	// Skip if web_search tool is already present
-	if p.hasWebSearchTool(claudeReq.Tools) {
-		return
-	}
-
-	// Add web_search tool to the tools array
+	toolName := p.getWebSearchToolName()
 	toolDef := p.getWebSearchToolDefinition()
 
 	if claudeReq.Tools == nil {
 		claudeReq.Tools = []interface{}{toolDef}
-	} else if toolsArray, ok := claudeReq.Tools.([]interface{}); ok {
-		claudeReq.Tools = append(toolsArray, toolDef)
+		log.Printf("Claude Code Cloud: Injected web_search tool into request")
+		return
 	}
 
-	log.Printf("Claude Code Cloud: Injected web_search tool into request")
+	toolsArray, ok := claudeReq.Tools.([]interface{})
+	if !ok {
+		claudeReq.Tools = []interface{}{toolDef}
+		log.Printf("Claude Code Cloud: Injected web_search tool into request")
+		return
+	}
+
+	// Remove any existing web_search tool from the client and replace with ours
+	replaced := false
+	var newTools []interface{}
+	for _, tool := range toolsArray {
+		toolMap, ok := tool.(map[string]interface{})
+		if ok {
+			if name, _ := toolMap["name"].(string); name == toolName {
+				// Replace client's web_search with our definition
+				newTools = append(newTools, toolDef)
+				replaced = true
+				log.Printf("Claude Code Cloud: Replaced client web_search tool with proxy-managed version")
+				continue
+			}
+		}
+		newTools = append(newTools, tool)
+	}
+
+	if !replaced {
+		newTools = append(newTools, toolDef)
+		log.Printf("Claude Code Cloud: Injected web_search tool into request")
+	}
+
+	claudeReq.Tools = newTools
 }
 
 // extractWebSearchToolUse extracts web_search tool_use from a Claude response
