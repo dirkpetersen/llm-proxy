@@ -110,7 +110,15 @@ multi_provider:
 # Claude Code Cloud Proxy (/cc)
 # Production Anthropic-compatible endpoint for Claude Code with open-source models
 # Users set ANTHROPIC_BASE_URL=https://llm.arcs.oregonstate.edu/cc/v1
-# and configure models like "hc/glm-4.7" in ~/.claude/settings.json
+#
+# Any Fireworks model can be used directly without preconfiguring it here.
+# Just use the Fireworks model name (e.g. "glm-5.1") and it will be
+# auto-routed to accounts/fireworks/models/<name>.
+#
+# Preconfigured models below are for:
+#   - Custom aliases (e.g. "glm5" -> "hc/glm-5")
+#   - Non-Fireworks backends (local vLLM, OpenAI)
+#   - Documenting recommended models
 claude_code_cloud:
   enabled: true
   # Web search configuration - always enabled for all models
@@ -121,11 +129,11 @@ claude_code_cloud:
     tool_name: "web_search"  # Name of the tool to inject and handle
     max_results: 100         # Max results per search (supports 1000+)
   models:
-    # GLM-4.7 via Fireworks - good general purpose model
-    "hc/glm-4.7":
+    # GLM-5 via Fireworks - good general purpose model
+    "hc/glm-5":
       backend: "fireworks"
-      model: "accounts/fireworks/models/glm-4p7"
-      aliases: ["glm-4.7", "glm4"]
+      model: "accounts/fireworks/models/glm-5"
+      aliases: ["glm-5", "glm5"]
 
     # DeepSeek V3 via Fireworks - strong reasoning model
     "hc/deepseek-v3":

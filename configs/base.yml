@@ -1142,17 +1142,18 @@ multi_provider:
 # CLAUDE CODE CLOUD PROXY (/cc)
 # =============================================================================
 # Production endpoint for Claude Code compatibility with open-source models.
-# Users configure ANTHROPIC_BASE_URL to point to /cc and use models like "hc/glm-4.7"
+# Users configure ANTHROPIC_BASE_URL to point to /cc and use models like "hc/glm-5"
 # which get routed to the configured backend (Fireworks, local vLLM, etc.)
+# Any Fireworks model can also be used directly without preconfiguring it.
 
 claude_code_cloud:
   enabled: false  # Disabled by default - enable in onprem.yml
   models:
-    # GLM-4.7 via Fireworks
-    "hc/glm-4.7":
+    # GLM-5 via Fireworks
+    "hc/glm-5":
       backend: "fireworks"
-      model: "accounts/fireworks/models/glm-4p7"
-      aliases: ["glm-4.7", "glm4"]
+      model: "accounts/fireworks/models/glm-5"
+      aliases: ["glm-5", "glm5"]
 
     # DeepSeek V3 via Fireworks
     "hc/deepseek-v3":
