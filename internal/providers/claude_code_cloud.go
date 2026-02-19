@@ -2328,6 +2328,36 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 			toolUseID = "toolu_" + generateID()
 		}
 
+		// Emit a tool_use content block to the client so Claude Code increments
+		// its "Did N searches" counter. We do NOT send stop_reason:"tool_use" so
+		// Claude Code knows not to execute the search itself - it was handled
+		// server-side. The stream stays open and continues to the next iteration.
+		queryJSON, _ := json.Marshal(map[string]string{"query": searchQuery})
+		p.writeAnthropicStreamEvent(w, "content_block_start", map[string]interface{}{
+			"type":  "content_block_start",
+			"index": localBlockIndex,
+			"content_block": map[string]interface{}{
+				"type":  "tool_use",
+				"id":    toolUseID,
+				"name":  webSearchToolName,
+				"input": map[string]interface{}{},
+			},
+		})
+		p.writeAnthropicStreamEvent(w, "content_block_delta", map[string]interface{}{
+			"type":  "content_block_delta",
+			"index": localBlockIndex,
+			"delta": map[string]interface{}{
+				"type":         "input_json_delta",
+				"partial_json": string(queryJSON),
+			},
+		})
+		p.writeAnthropicStreamEvent(w, "content_block_stop", map[string]interface{}{
+			"type":  "content_block_stop",
+			"index": localBlockIndex,
+		})
+		localBlockIndex++
+		flushContent()
+
 		// Update openaiReq with assistant response and tool result
 		messages, _ := openaiReq["messages"].([]interface{})
 
