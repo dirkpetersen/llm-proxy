@@ -1062,6 +1062,12 @@ func (p *ClaudeCodeCloud) Proxy() http.Handler {
 			return
 		}
 
+		// Handle /models and /models/{id} endpoints (used by Claude Code for model validation)
+		if strings.Contains(req.URL.Path, "/models") {
+			p.handleModels(w, req)
+			return
+		}
+
 		// Parse the Anthropic request
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -2015,6 +2021,38 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 			return
 		}
 
+		// Check for non-200 backend responses and forward the error properly
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			// Try to extract the error message from the JSON response
+			errMsg := string(body)
+			var errResp map[string]interface{}
+			if err := json.Unmarshal(body, &errResp); err == nil {
+				if errObj, ok := errResp["error"].(map[string]interface{}); ok {
+					if msg, ok := errObj["message"].(string); ok {
+						errMsg = msg
+					}
+				}
+			}
+
+			log.Printf("Claude Code Cloud: backend returned %d: %s", resp.StatusCode, errMsg)
+
+			// Write the error as a non-streaming JSON response so Claude Code shows it properly
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(resp.StatusCode)
+			errorResp := map[string]interface{}{
+				"type": "error",
+				"error": map[string]interface{}{
+					"type":    "api_error",
+					"message": errMsg,
+				},
+			}
+			json.NewEncoder(w).Encode(errorResp)
+			return
+		}
+
 		// Process streaming response and collect tool calls
 		var contentBuffer strings.Builder
 		var thinkingBuffer strings.Builder
@@ -2459,6 +2497,68 @@ func (p *ClaudeCodeCloud) handleStreamingRequestWithWebSearch(w http.ResponseWri
 	if flusher, ok := w.(http.Flusher); ok {
 		flusher.Flush()
 	}
+}
+
+// handleModels handles GET /models and GET /models/{id} endpoints.
+// Claude Code calls these to validate that the model exists before sending messages.
+func (p *ClaudeCodeCloud) handleModels(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Extract model ID from path: .../models/{id}
+	path := req.URL.Path
+	modelsIdx := strings.Index(path, "/models")
+	suffix := path[modelsIdx+len("/models"):]
+	suffix = strings.TrimPrefix(suffix, "/")
+
+	if suffix == "" {
+		// GET /models - list all configured models
+		var models []map[string]interface{}
+		if p.config.Models != nil {
+			for name := range p.config.Models {
+				models = append(models, map[string]interface{}{
+					"id":           name,
+					"type":         "model",
+					"display_name": name,
+					"created_at":   "2025-01-01T00:00:00Z",
+				})
+			}
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     models,
+			"has_more": false,
+			"first_id": "",
+			"last_id":  "",
+		})
+		return
+	}
+
+	// GET /models/{id} - return info for a specific model
+	modelID := suffix
+	modelCfg, _ := p.getModelConfig(modelID)
+
+	// Also accept fireworks/ prefix models
+	if modelCfg == nil && strings.HasPrefix(modelID, "fireworks/") {
+		modelCfg = &config.CCCloudModelConfig{Backend: "fireworks"}
+	}
+
+	if modelCfg == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]interface{}{
+				"type":    "not_found_error",
+				"message": fmt.Sprintf("model '%s' not found", modelID),
+			},
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":           modelID,
+		"type":         "model",
+		"display_name": modelID,
+		"created_at":   "2025-01-01T00:00:00Z",
+	})
 }
 
 // handleCountTokens handles the token counting endpoint
