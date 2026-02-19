@@ -1064,18 +1064,18 @@ func (p *ClaudeCodeCloud) Proxy() http.Handler {
 		// Look up model configuration
 		modelCfg, modelName := p.getModelConfig(claudeReq.Model)
 		if modelCfg == nil {
-			// List available models in error message
-			var availableModels []string
-			for name := range p.config.Models {
-				availableModels = append(availableModels, name)
+			// Model not preconfigured - fall back to Fireworks with the model name as-is
+			fireworksModel := claudeReq.Model
+			// Add Fireworks model prefix if not already present
+			if !strings.HasPrefix(fireworksModel, "accounts/") {
+				fireworksModel = "accounts/fireworks/models/" + fireworksModel
 			}
-			errorBytes, statusCode := p.createAnthropicError("invalid_request_error",
-				fmt.Sprintf("Model '%s' not configured. Available models: %s", claudeReq.Model, strings.Join(availableModels, ", ")),
-				http.StatusBadRequest)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(statusCode)
-			w.Write(errorBytes)
-			return
+			log.Printf("Claude Code Cloud: model '%s' not preconfigured, falling back to Fireworks: %s", claudeReq.Model, fireworksModel)
+			modelCfg = &config.CCCloudModelConfig{
+				Backend: "fireworks",
+				Model:   fireworksModel,
+			}
+			modelName = claudeReq.Model
 		}
 
 		// Get backend URL and API key
