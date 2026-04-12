@@ -69,16 +69,16 @@ type ClaudeCodeMessage struct {
 
 // ClaudeCodeRequest represents a Claude Code API request
 type ClaudeCodeRequest struct {
-	Model         string               `json:"model"`
-	MaxTokens     int                  `json:"max_tokens,omitempty"`
-	Messages      []ClaudeCodeMessage  `json:"messages"`
-	System        interface{}          `json:"system,omitempty"`        // Can be string or array
-	StopSequences []string             `json:"stop_sequences,omitempty"`
-	Stream        bool                 `json:"stream,omitempty"`
-	Temperature   float64              `json:"temperature,omitempty"`
-	TopP          float64              `json:"top_p,omitempty"`
-	Tools         interface{}          `json:"tools,omitempty"`         // Pass through but ignore
-	Metadata      interface{}          `json:"metadata,omitempty"`      // Pass through but ignore
+	Model         string              `json:"model"`
+	MaxTokens     int                 `json:"max_tokens,omitempty"`
+	Messages      []ClaudeCodeMessage `json:"messages"`
+	System        interface{}         `json:"system,omitempty"` // Can be string or array
+	StopSequences []string            `json:"stop_sequences,omitempty"`
+	Stream        bool                `json:"stream,omitempty"`
+	Temperature   float64             `json:"temperature,omitempty"`
+	TopP          float64             `json:"top_p,omitempty"`
+	Tools         interface{}         `json:"tools,omitempty"`    // Pass through but ignore
+	Metadata      interface{}         `json:"metadata,omitempty"` // Pass through but ignore
 }
 
 // AnthropicError represents an error in Anthropic format
@@ -104,7 +104,7 @@ func (p *ClaudeCodeProxy) routeModelToProvider(modelName string) string {
 	// Accept Bedrock/Anthropic model IDs - route to configured target_provider
 	// Examples: us.anthropic.claude-haiku-4-5-20251001-v1:0, claude-3-5-sonnet-20241022
 	if strings.Contains(modelLower, "anthropic") ||
-	   strings.Contains(modelLower, "claude") {
+		strings.Contains(modelLower, "claude") {
 		// Use configured target provider, default to qwen
 		if p.config != nil && p.config.TargetProvider != "" {
 			return p.config.TargetProvider
@@ -114,8 +114,8 @@ func (p *ClaudeCodeProxy) routeModelToProvider(modelName string) string {
 
 	// Check for qwen models: qwen/*, *-thinking, exact matches
 	if strings.Contains(modelLower, "qwen") ||
-	   strings.HasSuffix(modelLower, "-thinking") ||
-	   modelLower == "qwen/qwen3-next-80b-a3b-thinking" {
+		strings.HasSuffix(modelLower, "-thinking") ||
+		modelLower == "qwen/qwen3-next-80b-a3b-thinking" {
 		return "qwen"
 	}
 
@@ -606,7 +606,7 @@ func (p *ClaudeCodeProxy) createAnthropicError(errorType, message string, status
 			Message: message,
 		},
 	}
-	
+
 	errorBytes, _ := json.Marshal(anthropicErr)
 	return errorBytes, statusCode
 }
@@ -629,7 +629,7 @@ func (p *ClaudeCodeProxy) Proxy() http.Handler {
 			w.Write(errorBytes)
 			return
 		}
-		
+
 		var claudeReq ClaudeCodeRequest
 		if err := json.Unmarshal(bodyBytes, &claudeReq); err != nil {
 			errorBytes, statusCode := p.createAnthropicError("invalid_request_error", "Invalid JSON in request body", http.StatusBadRequest)
@@ -638,19 +638,19 @@ func (p *ClaudeCodeProxy) Proxy() http.Handler {
 			w.Write(errorBytes)
 			return
 		}
-		
+
 		// Determine target provider based on model
 		targetProviderName := p.routeModelToProvider(claudeReq.Model)
 		if targetProviderName == "" {
-			errorBytes, statusCode := p.createAnthropicError("invalid_request_error", 
-				fmt.Sprintf("Model '%s' is not supported. Supported models: qwen/*, *-thinking, claude-*, anthropic.*", claudeReq.Model), 
+			errorBytes, statusCode := p.createAnthropicError("invalid_request_error",
+				fmt.Sprintf("Model '%s' is not supported. Supported models: qwen/*, *-thinking, claude-*, anthropic.*", claudeReq.Model),
 				http.StatusBadRequest)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(statusCode)
 			w.Write(errorBytes)
 			return
 		}
-		
+
 		// Get the target provider
 		if p.providerManager == nil {
 			errorBytes, statusCode := p.createAnthropicError("internal_server_error", "Provider manager not available", http.StatusInternalServerError)
@@ -659,21 +659,21 @@ func (p *ClaudeCodeProxy) Proxy() http.Handler {
 			w.Write(errorBytes)
 			return
 		}
-		
+
 		targetProvider := p.providerManager.GetProvider(targetProviderName)
 		if targetProvider == nil {
-			errorBytes, statusCode := p.createAnthropicError("service_unavailable", 
-				fmt.Sprintf("Provider '%s' is not available", targetProviderName), 
+			errorBytes, statusCode := p.createAnthropicError("service_unavailable",
+				fmt.Sprintf("Provider '%s' is not available", targetProviderName),
 				http.StatusServiceUnavailable)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(statusCode)
 			w.Write(errorBytes)
 			return
 		}
-		
+
 		// Convert Claude Code request to OpenAI format
 		openaiReq := p.convertClaudeCodeToOpenAI(&claudeReq)
-		
+
 		// Create new request body
 		openaiReqBytes, err := json.Marshal(openaiReq)
 		if err != nil {
@@ -683,7 +683,7 @@ func (p *ClaudeCodeProxy) Proxy() http.Handler {
 			w.Write(errorBytes)
 			return
 		}
-		
+
 		// Create new HTTP request for the target provider
 		targetPath := fmt.Sprintf("/%s/v1/chat/completions", targetProviderName)
 		newReq, err := http.NewRequestWithContext(req.Context(), "POST", targetPath, bytes.NewBuffer(openaiReqBytes))
@@ -694,7 +694,7 @@ func (p *ClaudeCodeProxy) Proxy() http.Handler {
 			w.Write(errorBytes)
 			return
 		}
-		
+
 		// Copy headers
 		for key, values := range req.Header {
 			for _, value := range values {
@@ -703,7 +703,7 @@ func (p *ClaudeCodeProxy) Proxy() http.Handler {
 		}
 		newReq.Header.Set("Content-Type", "application/json")
 		newReq.URL.Path = targetPath
-		
+
 		// Handle streaming vs non-streaming
 		if claudeReq.Stream {
 			p.handleStreamingRequest(w, newReq, targetProvider)
@@ -719,13 +719,13 @@ func (p *ClaudeCodeProxy) handleNonStreamingRequest(w http.ResponseWriter, req *
 	// We'll capture the response and convert it
 	recorder := &responseRecorder{
 		ResponseWriter: w,
-		body:          &bytes.Buffer{},
-		statusCode:    200,
-		headers:       make(http.Header),
+		body:           &bytes.Buffer{},
+		statusCode:     200,
+		headers:        make(http.Header),
 	}
-	
+
 	targetProvider.Proxy().ServeHTTP(recorder, req)
-	
+
 	// Parse the OpenAI response
 	var openaiResp map[string]interface{}
 	if err := json.Unmarshal(recorder.body.Bytes(), &openaiResp); err != nil {
@@ -736,7 +736,7 @@ func (p *ClaudeCodeProxy) handleNonStreamingRequest(w http.ResponseWriter, req *
 		w.Write(errorBytes)
 		return
 	}
-	
+
 	// Check for errors in the OpenAI response
 	if errorObj, ok := openaiResp["error"].(map[string]interface{}); ok {
 		errorMsg := "Backend error occurred"
@@ -749,7 +749,7 @@ func (p *ClaudeCodeProxy) handleNonStreamingRequest(w http.ResponseWriter, req *
 		w.Write(errorBytes)
 		return
 	}
-	
+
 	// Check for invalid/empty responses (missing choices array indicates a problem)
 	if _, hasChoices := openaiResp["choices"]; !hasChoices {
 		errorMsg := "Backend returned invalid or empty response"
@@ -809,8 +809,8 @@ func (p *ClaudeCodeProxy) handleStreamingRequest(w http.ResponseWriter, req *htt
 	// Create a custom response writer that writes to our pipe
 	streamRecorder := &streamResponseRecorder{
 		ResponseWriter: w,
-		pipe:          pw,
-		headers:       make(http.Header),
+		pipe:           pw,
+		headers:        make(http.Header),
 	}
 
 	// Send initial Anthropic streaming events
@@ -1126,11 +1126,10 @@ func (p *ClaudeCodeProxy) handleStreamingRequest(w http.ResponseWriter, req *htt
 	}
 }
 
-
 // writeAnthropicStreamEvent writes an event in Anthropic SSE format
 func (p *ClaudeCodeProxy) writeAnthropicStreamEvent(w http.ResponseWriter, event string, data interface{}) {
 	jsonData, _ := json.Marshal(data)
-	
+
 	// Handle potential write errors (client disconnect)
 	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, string(jsonData)); err != nil {
 		// Client disconnected, don't log error as it's expected behavior
@@ -1189,9 +1188,9 @@ func (p *ClaudeCodeProxy) GetHealthStatus() map[string]interface{} {
 		"supported_models": []string{
 			"qwen/*", "*-thinking", "claude-*", "anthropic.*",
 		},
-		"endpoint":           "/cc-local/v1/messages",
+		"endpoint":            "/cc-local/v1/messages",
 		"supported_providers": []string{"qwen"},
-		"note": "gpt-oss not supported due to message format limitations",
+		"note":                "gpt-oss not supported due to message format limitations",
 	}
 
 	// Check provider manager availability
@@ -1293,7 +1292,7 @@ func (p *ClaudeCodeProxy) ExtractRequestModelAndMessages(req *http.Request) (str
 				if systemText != "" {
 					messages = append([]string{systemText}, messages...)
 				}
-				
+
 				return requestBody.Model, messages
 			}
 		}

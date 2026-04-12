@@ -15,10 +15,10 @@ import (
 // ANSI color codes
 const (
 	ColorReset  = "\033[0m"
-	ColorCyan   = "\033[96m"  // Request color (cyan)
-	ColorGreen  = "\033[92m"  // Response color (green)
-	ColorYellow = "\033[93m"  // Info color (yellow)
-	ColorRed    = "\033[91m"  // Error color (red)
+	ColorCyan   = "\033[96m" // Request color (cyan)
+	ColorGreen  = "\033[92m" // Response color (green)
+	ColorYellow = "\033[93m" // Info color (yellow)
+	ColorRed    = "\033[91m" // Error color (red)
 	ColorBold   = "\033[1m"
 )
 
@@ -58,7 +58,7 @@ func DebugMiddleware(providerManager *providers.ProviderManager, debugEnabled bo
 			}
 
 			startTime := time.Now()
-			
+
 			// Read and buffer the request body
 			var requestBody []byte
 			if r.Body != nil {
@@ -69,12 +69,12 @@ func DebugMiddleware(providerManager *providers.ProviderManager, debugEnabled bo
 			// Determine which provider this request is for
 			provider := GetProviderFromRequest(providerManager, r)
 			var selectedEndpoint string
-			
+
 			// Print request information
 			fmt.Printf("%s=== LLM DEBUG REQUEST ===%s\n", ColorCyan+ColorBold, ColorReset)
 			fmt.Printf("%sMethod:%s %s\n", ColorCyan, ColorReset, r.Method)
 			fmt.Printf("%sURL:%s %s\n", ColorCyan, ColorReset, r.URL.String())
-			
+
 			if provider != nil {
 				fmt.Printf("%sProvider:%s %s\n", ColorCyan, ColorReset, provider.GetName())
 			}
@@ -105,17 +105,17 @@ func DebugMiddleware(providerManager *providers.ProviderManager, debugEnabled bo
 
 			// Capture response
 			responseCapture := NewResponseCapture(w)
-			
+
 			// Call next handler
 			next.ServeHTTP(responseCapture, r)
-			
+
 			duration := time.Since(startTime)
 
 			// Print response information
 			fmt.Printf("%s=== LLM DEBUG RESPONSE ===%s\n", ColorGreen+ColorBold, ColorReset)
 			fmt.Printf("%sStatus:%s %d\n", ColorGreen, ColorReset, responseCapture.statusCode)
 			fmt.Printf("%sDuration:%s %v\n", ColorYellow, ColorReset, duration)
-			
+
 			if selectedEndpoint != "" {
 				fmt.Printf("%sSelected Endpoint:%s %s\n", ColorYellow, ColorReset, selectedEndpoint)
 			}
@@ -160,4 +160,3 @@ func prettyPrintJSON(data []byte) string {
 	}
 	return prettyJSON.String()
 }
-

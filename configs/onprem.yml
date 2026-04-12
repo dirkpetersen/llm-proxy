@@ -107,6 +107,13 @@ multi_provider:
         model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
       strategy: "primary-with-failover"
 
+# MCP Bing Search Server (/mcp-bing)
+# Exposes Bing web search as an MCP tool over Streamable HTTP (JSON-RPC 2.0)
+# No authentication required
+mcp_bing:
+  enabled: true
+  max_results: 10
+
 # Claude Code Cloud Proxy (/cc)
 # Production Anthropic-compatible endpoint for Claude Code with open-source models
 # Users set ANTHROPIC_BASE_URL=https://llm.arcs.oregonstate.edu/cc/v1

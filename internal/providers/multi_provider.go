@@ -26,12 +26,12 @@ type MultiProvider struct {
 
 // MultiModelHealth tracks health and load metrics for a model's primary backend
 type MultiModelHealth struct {
-	ModelName       string
-	PrimaryHealthy  bool
+	ModelName        string
+	PrimaryHealthy   bool
 	PrimaryLatencyMs int64
-	LastCheck       time.Time
+	LastCheck        time.Time
 	ConsecutiveFails int
-	QueueDepth      int // Estimated based on response times
+	QueueDepth       int // Estimated based on response times
 }
 
 // NewMultiProvider creates a new multi-provider with failover support
@@ -567,10 +567,10 @@ func (mp *MultiProvider) GetHealthStatus() map[string]interface{} {
 		}
 
 		modelsHealth[modelName] = map[string]interface{}{
-			"primary_healthy":   health.PrimaryHealthy,
+			"primary_healthy":    health.PrimaryHealthy,
 			"primary_latency_ms": health.PrimaryLatencyMs,
 			"consecutive_fails":  health.ConsecutiveFails,
-			"last_check":        health.LastCheck.Format(time.RFC3339),
+			"last_check":         health.LastCheck.Format(time.RFC3339),
 			"primary_provider":   modelConfig.Primary.Provider,
 			"primary_model":      modelConfig.Primary.Model,
 			"fallback_provider":  modelConfig.Fallback.Provider,

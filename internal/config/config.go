@@ -36,27 +36,27 @@ func formatNumber(n int64) string {
 func expandEnvironmentVariables(yamlContent []byte) []byte {
 	// Regex to match ${VAR_NAME} and ${VAR_NAME:-default}
 	envVarRegex := regexp.MustCompile(`\$\{([^}:]+)(?::(-?)([^}]*))?\}`)
-	
+
 	result := envVarRegex.ReplaceAllFunc(yamlContent, func(match []byte) []byte {
 		matches := envVarRegex.FindSubmatch(match)
 		if len(matches) < 2 {
 			return match
 		}
-		
+
 		varName := string(matches[1])
-		
+
 		// Get environment variable value
 		envValue := os.Getenv(varName)
-		
+
 		// If env var is empty and we have a default value
 		if envValue == "" && len(matches) >= 4 {
 			defaultValue := string(matches[3])
 			return []byte(defaultValue)
 		}
-		
+
 		return []byte(envValue)
 	})
-	
+
 	return result
 }
 
@@ -69,11 +69,12 @@ type YAMLConfig struct {
 	Features FeaturesConfig `yaml:"features"`
 
 	// Providers configuration
-	Providers        map[string]ProviderConfig         `yaml:"providers"`
-	LocalLLMs        map[string]LocalLLMProviderConfig `yaml:"local_llms,omitempty"`
-	ClaudeCodeProxy  *ClaudeCodeProxyConfig            `yaml:"claude_code_proxy,omitempty"`
-	ClaudeCodeCloud  *ClaudeCodeCloudConfig            `yaml:"claude_code_cloud,omitempty"`
-	MultiProvider    *MultiProviderConfig              `yaml:"multi_provider,omitempty"`
+	Providers       map[string]ProviderConfig         `yaml:"providers"`
+	LocalLLMs       map[string]LocalLLMProviderConfig `yaml:"local_llms,omitempty"`
+	ClaudeCodeProxy *ClaudeCodeProxyConfig            `yaml:"claude_code_proxy,omitempty"`
+	ClaudeCodeCloud *ClaudeCodeCloudConfig            `yaml:"claude_code_cloud,omitempty"`
+	MultiProvider   *MultiProviderConfig              `yaml:"multi_provider,omitempty"`
+	MCPBing         *MCPBingConfig                    `yaml:"mcp_bing,omitempty"`
 }
 
 // FeaturesConfig represents feature toggle configuration
@@ -177,20 +178,20 @@ type ProviderConfig struct {
 
 // LocalLLMProviderConfig represents configuration for local LLM providers
 type LocalLLMProviderConfig struct {
-	Enabled              bool                           `yaml:"enabled"`
-	DefaultModel         string                         `yaml:"default_model"`
-	Models               map[string]LocalLLMModelConfig `yaml:"models"`
-	ThinkingTagFix       bool                           `yaml:"thinking_tag_fix,omitempty"`       // Enable <think> tag processing
-	RequestTimeout       int                            `yaml:"request_timeout,omitempty"`        // Request timeout in seconds
-	MaxRetries          int                            `yaml:"max_retries,omitempty"`            // Maximum retry attempts
+	Enabled        bool                           `yaml:"enabled"`
+	DefaultModel   string                         `yaml:"default_model"`
+	Models         map[string]LocalLLMModelConfig `yaml:"models"`
+	ThinkingTagFix bool                           `yaml:"thinking_tag_fix,omitempty"` // Enable <think> tag processing
+	RequestTimeout int                            `yaml:"request_timeout,omitempty"`  // Request timeout in seconds
+	MaxRetries     int                            `yaml:"max_retries,omitempty"`      // Maximum retry attempts
 }
 
 // LocalLLMModelConfig represents configuration for a local LLM model
 type LocalLLMModelConfig struct {
-	Enabled   bool                    `yaml:"enabled"`
-	Aliases   []string                `yaml:"aliases,omitempty"`
+	Enabled   bool                     `yaml:"enabled"`
+	Aliases   []string                 `yaml:"aliases,omitempty"`
 	Endpoints []LocalLLMEndpointConfig `yaml:"endpoints"`
-	Pricing   interface{}             `yaml:"pricing,omitempty"`
+	Pricing   interface{}              `yaml:"pricing,omitempty"`
 }
 
 // LocalLLMEndpointConfig represents a single endpoint configuration
@@ -201,28 +202,28 @@ type LocalLLMEndpointConfig struct {
 
 // ClaudeCodeProxyConfig represents configuration for Claude Code proxy
 type ClaudeCodeProxyConfig struct {
-	Enabled              bool                        `yaml:"enabled"`
-	UnifiedEndpoint      string                      `yaml:"unified_endpoint,omitempty"`      // Single endpoint for all local models (e.g., "/cc-local/v1/messages")
-	SupportedProviders   []string                    `yaml:"supported_providers,omitempty"`   // Only local models supported initially (e.g., ["qwen", "gpt-oss"])
-	ModelRouting         ClaudeCodeModelRouting      `yaml:"model_routing,omitempty"`         // Model routing configuration
-	ParameterMapping     map[string]string           `yaml:"parameter_mapping,omitempty"`     // Parameter name mappings
-	ThinkTagConversion   ClaudeCodeThinkTagConfig    `yaml:"think_tag_conversion,omitempty"`  // Think tag conversion settings
-	
+	Enabled            bool                     `yaml:"enabled"`
+	UnifiedEndpoint    string                   `yaml:"unified_endpoint,omitempty"`     // Single endpoint for all local models (e.g., "/cc-local/v1/messages")
+	SupportedProviders []string                 `yaml:"supported_providers,omitempty"`  // Only local models supported initially (e.g., ["qwen", "gpt-oss"])
+	ModelRouting       ClaudeCodeModelRouting   `yaml:"model_routing,omitempty"`        // Model routing configuration
+	ParameterMapping   map[string]string        `yaml:"parameter_mapping,omitempty"`    // Parameter name mappings
+	ThinkTagConversion ClaudeCodeThinkTagConfig `yaml:"think_tag_conversion,omitempty"` // Think tag conversion settings
+
 	// Legacy fields for backward compatibility
-	TargetProvider       string                      `yaml:"target_provider,omitempty"`       // Deprecated: use model routing instead
-	TargetModel          string                      `yaml:"target_model,omitempty"`          // Deprecated: use model routing instead
+	TargetProvider string `yaml:"target_provider,omitempty"` // Deprecated: use model routing instead
+	TargetModel    string `yaml:"target_model,omitempty"`    // Deprecated: use model routing instead
 }
 
 // ClaudeCodeModelRouting represents model routing configuration
 type ClaudeCodeModelRouting struct {
-	QwenModels   []string `yaml:"qwen_models,omitempty"`   // Patterns for qwen models
+	QwenModels   []string `yaml:"qwen_models,omitempty"`    // Patterns for qwen models
 	GptOssModels []string `yaml:"gpt_oss_models,omitempty"` // Patterns for gpt-oss models
 }
 
 // ClaudeCodeThinkTagConfig represents think tag conversion configuration
 type ClaudeCodeThinkTagConfig struct {
-	Enabled                   bool `yaml:"enabled"`
-	ConvertToAnthropicFormat  bool `yaml:"convert_to_anthropic_format"` // Convert <think> tags to Anthropic thinking format
+	Enabled                  bool `yaml:"enabled"`
+	ConvertToAnthropicFormat bool `yaml:"convert_to_anthropic_format"` // Convert <think> tags to Anthropic thinking format
 }
 
 // MultiProviderConfig represents configuration for federated/multi-provider routing
@@ -234,19 +235,25 @@ type MultiProviderConfig struct {
 
 // MultiModelConfig represents configuration for a single federated model
 type MultiModelConfig struct {
-	Enabled  bool                    `yaml:"enabled"`
-	Aliases  []string                `yaml:"aliases,omitempty"`  // Alternative names for this model
-	Primary  MultiBackendConfig      `yaml:"primary"`            // Primary backend (usually on-prem)
-	Fallback MultiBackendConfig      `yaml:"fallback"`           // Fallback backend (usually cloud)
-	Strategy string                  `yaml:"strategy,omitempty"` // Routing strategy: "primary-with-failover" (default), "weighted", "cost-optimized"
+	Enabled  bool               `yaml:"enabled"`
+	Aliases  []string           `yaml:"aliases,omitempty"`  // Alternative names for this model
+	Primary  MultiBackendConfig `yaml:"primary"`            // Primary backend (usually on-prem)
+	Fallback MultiBackendConfig `yaml:"fallback"`           // Fallback backend (usually cloud)
+	Strategy string             `yaml:"strategy,omitempty"` // Routing strategy: "primary-with-failover" (default), "weighted", "cost-optimized"
 }
 
 // MultiBackendConfig represents configuration for a backend in multi-provider setup
 type MultiBackendConfig struct {
-	Provider      string `yaml:"provider"`                   // Provider name (e.g., "gpt-oss", "bedrock")
-	Model         string `yaml:"model"`                      // Model name for this backend
-	MaxLatencyMs  int    `yaml:"max_latency_ms,omitempty"`   // Max latency before failover (in milliseconds)
-	MaxQueueDepth int    `yaml:"max_queue_depth,omitempty"`  // Max queue depth before failover
+	Provider      string `yaml:"provider"`                  // Provider name (e.g., "gpt-oss", "bedrock")
+	Model         string `yaml:"model"`                     // Model name for this backend
+	MaxLatencyMs  int    `yaml:"max_latency_ms,omitempty"`  // Max latency before failover (in milliseconds)
+	MaxQueueDepth int    `yaml:"max_queue_depth,omitempty"` // Max queue depth before failover
+}
+
+// MCPBingConfig represents configuration for the MCP Bing search endpoint
+type MCPBingConfig struct {
+	Enabled    bool `yaml:"enabled"`
+	MaxResults int  `yaml:"max_results,omitempty"` // Default max results per search (default: 10)
 }
 
 // ClaudeCodeCloudConfig represents configuration for the /cc endpoint (Claude Code cloud proxy)
@@ -258,20 +265,20 @@ type ClaudeCodeCloudConfig struct {
 
 // WebSearchConfig represents configuration for proxy-side web search
 type WebSearchConfig struct {
-	Enabled        bool     `yaml:"enabled"`                    // Enable web search interception
-	Provider       string   `yaml:"provider"`                   // Search provider: always uses "colly" (paginated Bing search)
-	ToolName       string   `yaml:"tool_name,omitempty"`        // Tool name to intercept (default: "web_search")
-	MaxResults     int      `yaml:"max_results,omitempty"`      // Max results per search (default: 5)
-	IncludeDomains []string `yaml:"include_domains,omitempty"`  // Only search these domains
-	ExcludeDomains []string `yaml:"exclude_domains,omitempty"`  // Exclude these domains
+	Enabled        bool     `yaml:"enabled"`                   // Enable web search interception
+	Provider       string   `yaml:"provider"`                  // Search provider: always uses "colly" (paginated Bing search)
+	ToolName       string   `yaml:"tool_name,omitempty"`       // Tool name to intercept (default: "web_search")
+	MaxResults     int      `yaml:"max_results,omitempty"`     // Max results per search (default: 5)
+	IncludeDomains []string `yaml:"include_domains,omitempty"` // Only search these domains
+	ExcludeDomains []string `yaml:"exclude_domains,omitempty"` // Exclude these domains
 }
 
 // CCCloudModelConfig represents configuration for a single model in Claude Code cloud
 type CCCloudModelConfig struct {
-	Backend   string              `yaml:"backend"`             // Backend type: "fireworks", "local", "openai"
-	Model     string              `yaml:"model"`               // Actual model name for the backend (e.g., "accounts/fireworks/models/glm-4p7")
-	Aliases   []string            `yaml:"aliases,omitempty"`   // Alternative names for this model
-	Endpoints []CCCloudEndpoint   `yaml:"endpoints,omitempty"` // For "local" backend: list of vLLM endpoints with failover
+	Backend   string            `yaml:"backend"`             // Backend type: "fireworks", "local", "openai"
+	Model     string            `yaml:"model"`               // Actual model name for the backend (e.g., "accounts/fireworks/models/glm-4p7")
+	Aliases   []string          `yaml:"aliases,omitempty"`   // Alternative names for this model
+	Endpoints []CCCloudEndpoint `yaml:"endpoints,omitempty"` // For "local" backend: list of vLLM endpoints with failover
 }
 
 // CCCloudEndpoint represents a single endpoint for local vLLM backend

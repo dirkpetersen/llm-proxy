@@ -33,7 +33,7 @@ type ClaudeCodeCloud struct {
 // NewClaudeCodeCloud creates a new Claude Code cloud provider
 func NewClaudeCodeCloud(cfg *config.ClaudeCodeCloudConfig) *ClaudeCodeCloud {
 	client := &http.Client{
-		Timeout: 300 * time.Second, // Longer timeout for cloud APIs
+		Timeout: 600 * time.Second, // Longer timeout for cloud APIs (GLM-5 extended thinking)
 	}
 
 	// Initialize web search client if configured
@@ -938,9 +938,9 @@ func (p *ClaudeCodeCloud) handleWebSearchToolUse(
 				})
 			} else if block.Type == "tool_use" {
 				assistantContent = append(assistantContent, map[string]interface{}{
-					"type": "tool_use",
-					"id":   block.ID,
-					"name": block.Name,
+					"type":  "tool_use",
+					"id":    block.ID,
+					"name":  block.Name,
 					"input": block.Input,
 				})
 			}

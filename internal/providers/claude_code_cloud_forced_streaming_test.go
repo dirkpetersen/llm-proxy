@@ -178,37 +178,37 @@ func TestToolCallToToolUseConversion(t *testing.T) {
 // TestStopReasonDetermination verifies stop_reason is correctly set when tool_calls are present
 func TestStopReasonDetermination(t *testing.T) {
 	testCases := []struct {
-		name              string
-		finishReason      string
-		hasToolCalls      bool
+		name               string
+		finishReason       string
+		hasToolCalls       bool
 		expectedStopReason string
-		description       string
+		description        string
 	}{
 		{
-			name:              "tool_calls with finish_reason tool_calls",
-			finishReason:      "tool_calls",
-			hasToolCalls:      true,
+			name:               "tool_calls with finish_reason tool_calls",
+			finishReason:       "tool_calls",
+			hasToolCalls:       true,
 			expectedStopReason: "tool_use",
 			description:        "When tool_calls are present, should be tool_use",
 		},
 		{
-			name:              "tool_calls with finish_reason stop",
-			finishReason:      "stop",
-			hasToolCalls:      true,
+			name:               "tool_calls with finish_reason stop",
+			finishReason:       "stop",
+			hasToolCalls:       true,
 			expectedStopReason: "tool_use",
 			description:        "When tool_calls are present, should be tool_use even if finish_reason is stop",
 		},
 		{
-			name:              "no tool_calls with finish_reason stop",
-			finishReason:      "stop",
-			hasToolCalls:      false,
+			name:               "no tool_calls with finish_reason stop",
+			finishReason:       "stop",
+			hasToolCalls:       false,
 			expectedStopReason: "end_turn",
 			description:        "Without tool_calls, stop -> end_turn",
 		},
 		{
-			name:              "no tool_calls with finish_reason length",
-			finishReason:      "length",
-			hasToolCalls:      false,
+			name:               "no tool_calls with finish_reason length",
+			finishReason:       "length",
+			hasToolCalls:       false,
 			expectedStopReason: "max_tokens",
 			description:        "Without tool_calls, length -> max_tokens",
 		},

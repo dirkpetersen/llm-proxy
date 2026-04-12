@@ -196,6 +196,12 @@ type responseCapture struct {
 	lastParsedPos int // Track the last position we parsed to avoid re-parsing
 }
 
+func (rc *responseCapture) Flush() {
+	if flusher, ok := rc.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 func (rc *responseCapture) Write(b []byte) (int, error) {
 	// Write to both the original response and our buffer
 	rc.body.Write(b)

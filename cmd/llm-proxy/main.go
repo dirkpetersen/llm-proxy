@@ -17,9 +17,11 @@ import (
 	"github.com/Instawork/llm-proxy/internal/apikeys"
 	"github.com/Instawork/llm-proxy/internal/config"
 	"github.com/Instawork/llm-proxy/internal/cost"
+	"github.com/Instawork/llm-proxy/internal/mcp"
 	"github.com/Instawork/llm-proxy/internal/middleware"
 	"github.com/Instawork/llm-proxy/internal/providers"
 	"github.com/Instawork/llm-proxy/internal/ratelimit"
+	"github.com/Instawork/llm-proxy/internal/websearch"
 	"github.com/gorilla/mux"
 )
 
@@ -632,6 +634,14 @@ func runServer(yamlConfig *config.YAMLConfig) {
 
 	r.Use(middleware.TokenParsingMiddleware(globalProviderManager, callbacks...)) // Add token parsing middleware with callbacks
 	r.Use(middleware.StreamingMiddleware(globalProviderManager))
+
+	// Register MCP Bing search endpoint if enabled
+	if yamlConfig.MCPBing != nil && yamlConfig.MCPBing.Enabled {
+		searchClient := websearch.NewCollyClient()
+		mcpServer := mcp.NewMCPBingServer(searchClient, yamlConfig.MCPBing.MaxResults)
+		r.Handle("/mcp-bing", mcpServer).Methods("POST")
+		logger.Info("Registered MCP Bing search endpoint", "path", "/mcp-bing")
+	}
 
 	// Health check endpoint
 	r.HandleFunc("/health", healthHandler).Methods("GET", "HEAD")

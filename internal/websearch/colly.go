@@ -44,7 +44,7 @@ func (c *CollyClient) Search(query string, opts *SearchOptions) (*SearchResult, 
 			strings.Contains(queryLower, "latest") ||
 			strings.Contains(queryLower, "today") {
 			opts.Advanced = true // Enable news mode for news-related queries
-			opts.Days = 7 // Short window for news queries
+			opts.Days = 7        // Short window for news queries
 		}
 	}
 

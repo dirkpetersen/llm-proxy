@@ -23,14 +23,14 @@ import (
 
 // LocalLLMProvider implements the Provider interface for local LLM providers
 type LocalLLMProvider struct {
-	name              string
-	config            *config.LocalLLMProviderConfig
-	client            *http.Client
-	requestTimeout    time.Duration
-	thinkTagRegex     *regexp.Regexp
-	endThinkTagRegex  *regexp.Regexp
-	proxy             *httputil.ReverseProxy
-	providerManager   *ProviderManager // Add reference to provider manager for /local routing
+	name             string
+	config           *config.LocalLLMProviderConfig
+	client           *http.Client
+	requestTimeout   time.Duration
+	thinkTagRegex    *regexp.Regexp
+	endThinkTagRegex *regexp.Regexp
+	proxy            *httputil.ReverseProxy
+	providerManager  *ProviderManager // Add reference to provider manager for /local routing
 }
 
 // NewLocalLLMProvider creates a new local LLM provider
@@ -123,7 +123,7 @@ func (p *LocalLLMProvider) selectEndpoint(modelName string) (*config.LocalLLMEnd
 			validEndpoints = append(validEndpoints, endpoint)
 		}
 	}
-	
+
 	if len(validEndpoints) == 0 {
 		return nil, fmt.Errorf("no valid endpoints configured for model %s", modelName)
 	}
@@ -131,7 +131,7 @@ func (p *LocalLLMProvider) selectEndpoint(modelName string) (*config.LocalLLMEnd
 	// Random selection (stateless round-robin as specified)
 	rand.Seed(time.Now().UnixNano())
 	selectedEndpoint := validEndpoints[rand.Intn(len(validEndpoints))]
-	
+
 	return &selectedEndpoint, nil
 }
 
@@ -161,7 +161,7 @@ func (p *LocalLLMProvider) makeRequest(req *http.Request, modelName string) (*ht
 	}
 
 	var lastErr error
-	
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		endpoint, err := p.selectEndpoint(modelName)
 		if err != nil {
@@ -182,11 +182,11 @@ func (p *LocalLLMProvider) makeRequest(req *http.Request, modelName string) (*ht
 			continue
 		}
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Restore original body
-		
+
 		// Construct the path, avoiding double /v1
 		endpointPath := strings.TrimSuffix(targetURL.Path, "/")
 		requestPath := strings.TrimPrefix(req.URL.Path, "/"+p.name)
-		
+
 		var finalPath string
 		// If endpoint already ends with /v1 and request starts with /v1, remove one
 		if strings.HasSuffix(endpointPath, "/v1") && strings.HasPrefix(requestPath, "/v1") {
@@ -194,7 +194,7 @@ func (p *LocalLLMProvider) makeRequest(req *http.Request, modelName string) (*ht
 		} else {
 			finalPath = endpointPath + requestPath
 		}
-		
+
 		// Create target URL
 		targetRequestURL := &url.URL{
 			Scheme:   targetURL.Scheme,
@@ -202,14 +202,14 @@ func (p *LocalLLMProvider) makeRequest(req *http.Request, modelName string) (*ht
 			Path:     finalPath,
 			RawQuery: req.URL.RawQuery,
 		}
-		
+
 		// Create new request
 		clonedReq, err := http.NewRequestWithContext(context.Background(), req.Method, targetRequestURL.String(), bytes.NewBuffer(bodyBytes))
 		if err != nil {
 			lastErr = fmt.Errorf("failed to create request: %w", err)
 			continue
 		}
-		
+
 		// Copy headers
 		for key, values := range req.Header {
 			for _, value := range values {
@@ -225,7 +225,7 @@ func (p *LocalLLMProvider) makeRequest(req *http.Request, modelName string) (*ht
 		// Make the request with configured timeout
 		ctx, cancel := context.WithTimeout(context.Background(), p.requestTimeout)
 		clonedReq = clonedReq.WithContext(ctx)
-		
+
 		resp, err := p.client.Do(clonedReq)
 		cancel()
 
@@ -393,7 +393,7 @@ func (p *LocalLLMProvider) processThinkTags(responseBody []byte, isStreaming boo
 						processedContent := "<think>" + content
 						message["content"] = processedContent
 					}
-					
+
 					// Re-encode the modified response
 					modifiedResponse, err := json.Marshal(response)
 					if err == nil {
@@ -407,15 +407,15 @@ func (p *LocalLLMProvider) processThinkTags(responseBody []byte, isStreaming boo
 	return responseBody
 }
 
-// SSEChunk models one streamed "chat.completion.chunk" event  
+// SSEChunk models one streamed "chat.completion.chunk" event
 type SSEChunk struct {
 	ID      string `json:"id"`
 	Object  string `json:"object"`
 	Created int64  `json:"created"`
 	Model   string `json:"model"`
 	Choices []struct {
-		Index   int `json:"index"`
-		Delta   struct {
+		Index int `json:"index"`
+		Delta struct {
 			Role    string `json:"role,omitempty"`
 			Content string `json:"content,omitempty"`
 		} `json:"delta"`
@@ -429,7 +429,7 @@ type SSEChunk struct {
 // chunkState tracks state across streaming chunks for GPT-OSS pattern detection
 type chunkState struct {
 	step1Assistant bool // Detected "assistant" in chunk
-	step2Empty     bool // Detected "" after "assistant"  
+	step2Empty     bool // Detected "" after "assistant"
 	step3Final     bool // Ready to detect "final"
 }
 
@@ -446,14 +446,14 @@ func (p *LocalLLMProvider) handleStreamingWithThinkTags(w http.ResponseWriter, r
 	// Construct target URL with smart /v1 handling
 	endpointPath := strings.TrimSuffix(targetURL.Path, "/")
 	requestPath := strings.TrimPrefix(req.URL.Path, "/"+p.name)
-	
+
 	var finalPath string
 	if strings.HasSuffix(endpointPath, "/v1") && strings.HasPrefix(requestPath, "/v1") {
 		finalPath = endpointPath + strings.TrimPrefix(requestPath, "/v1")
 	} else {
 		finalPath = endpointPath + requestPath
 	}
-	
+
 	targetRequestURL := &url.URL{
 		Scheme:   targetURL.Scheme,
 		Host:     targetURL.Host,
@@ -497,11 +497,11 @@ func (p *LocalLLMProvider) handleStreamingWithThinkTags(w http.ResponseWriter, r
 	flusher, _ := w.(http.Flusher) // Optional - don't fail if not available
 
 	reader := bufio.NewReader(resp.Body)
-	
+
 	// State for processing
 	var firstContentInserted bool
 	var recentContent []string // Sliding window for GPT-OSS pattern detection
-	
+
 	// Determine processing type based on model
 	isQwenModel := strings.HasSuffix(modelName, "-thinking")
 	isGptOssModel := strings.Contains(strings.ToLower(modelName), "gpt-oss")
@@ -535,7 +535,7 @@ func (p *LocalLLMProvider) handleStreamingWithThinkTags(w http.ResponseWriter, r
 								// GPT-OSS logic: Sliding window approach
 								content := chunk.Choices[i].Delta.Content
 								role := chunk.Choices[i].Delta.Role
-								
+
 								// Add content to sliding window (include roles and content)
 								if role != "" {
 									recentContent = append(recentContent, role)
@@ -544,18 +544,18 @@ func (p *LocalLLMProvider) handleStreamingWithThinkTags(w http.ResponseWriter, r
 								} else {
 									recentContent = append(recentContent, "")
 								}
-								
+
 								// Keep sliding window of size 3
 								if len(recentContent) > 3 {
 									recentContent = recentContent[1:]
 								}
-								
-								// Replace "analysis" with "<think>" in first occurrence  
+
+								// Replace "analysis" with "<think>" in first occurrence
 								if !firstContentInserted && role == "" && content == "analysis" {
 									chunk.Choices[i].Delta.Content = "<think>"
 									firstContentInserted = true
 								}
-								
+
 								// Check for pattern: "assistant" -> "" -> "final"
 								if len(recentContent) == 3 &&
 									recentContent[0] == "assistant" &&
@@ -629,18 +629,18 @@ func (p *LocalLLMProvider) Proxy() http.Handler {
 			req.URL.Scheme = targetURL.Scheme
 			req.URL.Host = targetURL.Host
 			req.Host = targetURL.Host
-			
+
 			// Handle path construction with smart /v1 handling
 			endpointPath := strings.TrimSuffix(targetURL.Path, "/")
 			requestPath := strings.TrimPrefix(req.URL.Path, "/"+p.name)
-			
+
 			// If endpoint already ends with /v1 and request starts with /v1, remove one
 			if strings.HasSuffix(endpointPath, "/v1") && strings.HasPrefix(requestPath, "/v1") {
 				req.URL.Path = endpointPath + strings.TrimPrefix(requestPath, "/v1")
 			} else {
 				req.URL.Path = endpointPath + requestPath
 			}
-			
+
 			// Set API key if provided
 			if endpoint.APIKey != "" {
 				req.Header.Set("Authorization", "Bearer "+endpoint.APIKey)
@@ -681,27 +681,27 @@ func (p *LocalLLMProvider) GetHealthStatus() map[string]interface{} {
 			if strings.TrimSpace(endpoint.URL) == "" {
 				continue
 			}
-			
+
 			endpointStatus := map[string]interface{}{
-				"model":    modelName,
-				"url":      endpoint.URL,
-				"status":   "unknown",
+				"model":         modelName,
+				"url":           endpoint.URL,
+				"status":        "unknown",
 				"response_time": "N/A",
 			}
 
 			// Quick health check
 			start := time.Now()
 			healthURL := strings.TrimSuffix(endpoint.URL, "/") + "/models"
-			
+
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			req, _ := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
 			if endpoint.APIKey != "" {
 				req.Header.Set("Authorization", "Bearer "+endpoint.APIKey)
 			}
-			
+
 			resp, err := p.client.Do(req)
 			cancel()
-			
+
 			if err == nil {
 				resp.Body.Close()
 				endpointStatus["status"] = "healthy"
@@ -734,8 +734,8 @@ func (p *LocalLLMProvider) RegisterExtraRoutes(router *mux.Router) {
 	if p.name == "qwen" {
 		// Register /local/v1/models endpoint for model discovery
 		router.HandleFunc("/local/v1/models", p.handleUnifiedModelsEndpoint).Methods("GET")
-		
-		// Register /local/v1/chat/completions endpoint for unified model access  
+
+		// Register /local/v1/chat/completions endpoint for unified model access
 		router.HandleFunc("/local/v1/chat/completions", p.handleUnifiedChatCompletions).Methods("POST")
 	}
 }
@@ -785,7 +785,7 @@ func (p *LocalLLMProvider) ExtractRequestModelAndMessages(req *http.Request) (st
 func (p *LocalLLMProvider) ParseResponseMetadata(responseBody io.Reader, isStreaming bool) (*LLMResponseMetadata, error) {
 	// Basic metadata parsing for local LLMs
 	// This would need to be enhanced based on the actual response format of your local LLMs
-	
+
 	metadata := &LLMResponseMetadata{
 		Provider:    p.name,
 		IsStreaming: isStreaming,
@@ -820,10 +820,11 @@ func (p *LocalLLMProvider) ParseResponseMetadata(responseBody io.Reader, isStrea
 
 	return metadata, nil
 }
+
 // handleUnifiedModelsEndpoint returns local models from all configured local LLM providers
 func (p *LocalLLMProvider) handleUnifiedModelsEndpoint(w http.ResponseWriter, req *http.Request) {
 	models := make([]map[string]interface{}, 0)
-	
+
 	if p.providerManager != nil {
 		// Get all providers and filter for local LLM providers
 		for providerName, provider := range p.providerManager.GetAllProviders() {
@@ -864,16 +865,16 @@ func (p *LocalLLMProvider) handleUnifiedChatCompletions(w http.ResponseWriter, r
 	}
 
 	modelLower := strings.ToLower(modelName)
-	
+
 	if strings.Contains(modelLower, "qwen") || strings.Contains(modelLower, "-thinking") {
 		// Route to qwen provider - modify the request path to match qwen provider's expected path
 		// Change /local/v1/chat/completions to /qwen/v1/chat/completions internally
 		originalPath := req.URL.Path
 		req.URL.Path = "/qwen/v1/chat/completions"
-		
+
 		// Call the qwen provider's Proxy handler directly
 		p.Proxy().ServeHTTP(w, req)
-		
+
 		// Restore original path (though request is done)
 		req.URL.Path = originalPath
 	} else if strings.Contains(modelLower, "gpt-oss") || strings.Contains(modelLower, "openai/gpt-oss") {
@@ -884,16 +885,16 @@ func (p *LocalLLMProvider) handleUnifiedChatCompletions(w http.ResponseWriter, r
 				// Change /local/v1/chat/completions to /gpt-oss/v1/chat/completions internally
 				originalPath := req.URL.Path
 				req.URL.Path = "/gpt-oss/v1/chat/completions"
-				
+
 				// Call the gpt-oss provider's Proxy handler directly
 				gptOssProvider.Proxy().ServeHTTP(w, req)
-				
+
 				// Restore original path (though request is done)
 				req.URL.Path = originalPath
 				return
 			}
 		}
-		
+
 		// If gpt-oss provider not available, provide helpful guidance
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
